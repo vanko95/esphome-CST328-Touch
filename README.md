@@ -3,3 +3,4 @@ Tested:
   Display
   Touch
   Audio
+  Switches in Homeassistant
