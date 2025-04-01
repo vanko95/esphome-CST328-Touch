@@ -1,7 +1,7 @@
 # =====================================================================
 # ESPHome Configuration for Waveshare ESP32-S3-Touch-LCD-2.8
 # -- Display: ST7789 (240x320)
-# -- Touch:   CST328 (I2C)
+# -- Touch:   CST328/CST816S (I2C)
 # =====================================================================
 
 esphome:
@@ -29,6 +29,8 @@ wifi:
 # Enable Home Assistant API
 api:
 
+ota:
+  platform: esphome
   
 # Enable logging
 logger:
@@ -38,19 +40,19 @@ logger:
 
 # SPI Bus (For Display Only)
 spi:
-  clk_pin: GPIO40  
-  mosi_pin: GPIO45 
+  clk_pin: GPIO40  # Changed from 14
+  mosi_pin: GPIO45 # Changed from 13
   # MISO not typically used by ST7789 display, can often be omitted
   # miso_pin: GPIO3
   id: spi_display_bus
 
 # I2C Bus (For Touch Controller)
 i2c:
-  sda: GPIO1 
-  scl: GPIO3 
+  sda: GPIO1 # Touch SDA 11
+  scl: GPIO3 # Touch SCL 10
   scan: true     # Log found I2C devices on boot (helpful for debugging)
   id: i2c_touch_bus
-  frequency: 400kHz 
+  frequency: 400kHz # Or try 100kHz
 
 # Backlight Control
 output:
@@ -81,6 +83,7 @@ font:
 # Display Configuration (ST7789)
 display:
   - platform: st7789v
+    id: display_st7789
     model: custom # Generic ST7789
     spi_id: spi_display_bus # Reference the SPI bus
     cs_pin: GPIO42   # Changed from 6
@@ -117,10 +120,43 @@ display:
       // Display a sensor value from Home Assistant (replace with your sensor ID)
       if (id(outside_temperature).has_state()) {
         // Use RGB for Cyan
-        it.printf(center_x, it.get_height() - 30, id(font_roboto_medium), Color(0, 255, 255), TextAlign::CENTER, "Outside: %.1f°C", id(outside_temperature).state);
+        it.printf(center_x, it.get_height() - 30, id(font_roboto_medium), Color(0, 255, 255), TextAlign::CENTER, "Living Room: %.1f°C", id(outside_temperature).state);
       } else {
         // Use RGB for Orange
         it.print(center_x, it.get_height() - 30, id(font_roboto_small), Color(255, 165, 0), TextAlign::CENTER, "No Temp Data");
+      }
+      
+      // Draw button for toggling light
+      int button_x = 60;
+      int button_y = 230;
+      int button_w = 120;
+      int button_h = 50;
+
+      // Label for Button 1
+      it.print(button_x + button_w / 2, button_y - 20, id(font_roboto_small), Color::WHITE, TextAlign::CENTER, "Table");
+      
+      // Draw button background
+      if (id(ha_light).state) {
+        it.filled_rectangle(button_x, button_y, button_w, button_h, Color(0, 255, 0)); // Green for ON
+        it.print(button_x + button_w / 2, button_y + button_h / 2, id(font_roboto_medium), Color::BLACK, TextAlign::CENTER, "ON");
+      } else {
+        it.filled_rectangle(button_x, button_y, button_w, button_h, Color(255, 0, 0)); // Red for OFF
+        it.print(button_x + button_w / 2, button_y + button_h / 2, id(font_roboto_medium), Color::WHITE, TextAlign::CENTER, "OFF");
+      }
+      // Button 2 (New, above the clock)
+      int button2_x = 60;
+      int button2_y = 50;
+
+      // Label for Button 2
+      it.print(button2_x + button_w / 2, button2_y - 20, id(font_roboto_small), Color::WHITE, TextAlign::CENTER, "Kitchen");
+
+      
+      if (id(ha_second_light).state) {
+        it.filled_rectangle(button2_x, button2_y, button_w, button_h, Color(0, 255, 0));
+        it.print(button2_x + button_w / 2, button2_y + button_h / 2, id(font_roboto_medium), Color::BLACK, TextAlign::CENTER, "ON");
+      } else {
+        it.filled_rectangle(button2_x, button2_y, button_w, button_h, Color(255, 0, 0));
+        it.print(button2_x + button_w / 2, button2_y + button_h / 2, id(font_roboto_medium), Color::WHITE, TextAlign::CENTER, "OFF");
       }
       
 # Touchscreen Configuration (CST328 via I2C)
@@ -140,13 +176,46 @@ binary_sensor:
     # Define the area for the virtual button (covering the whole screen)
     # IMPORTANT: Coordinates depend on the 'rotation:' value in your 'display:' section
     # Assuming rotation: 0 (Width=240, Height=320)
-    x_min: 0
-    y_min: 0
-    x_max: 239 # Screen Width - 1
-    y_max: 319 # Screen Height - 1
-    # Optional: delay before sensor turns OFF after touch release
-    # off_delay: 50ms
-# -- Home Assistant Integration --
+    x_min: 60
+    y_min: 230
+    x_max: 180
+    y_max: 280
+    on_press:
+      then:
+        - homeassistant.service:  # Toggle light
+            service: switch.toggle
+            data:
+              entity_id: switch.light_2
+
+  - platform: touchscreen
+    name: "LCD Touch Second Button"
+    touchscreen_id: my_touchscreen
+    x_min: 60
+    y_min: 50
+    x_max: 180
+    y_max: 100
+    on_press:
+      then:
+        - homeassistant.service:
+            service: switch.toggle
+            data:
+              entity_id: switch.light_1
+
+  - platform: homeassistant
+    id: ha_light
+    entity_id: switch.light_2
+    name: "Table Light State"
+    on_state:
+      then:
+        - component.update: display_st7789
+
+  - platform: homeassistant
+    id: ha_second_light
+    entity_id: switch.light_1
+    name: "Kitchen Light State" 
+    on_state:
+      then:
+        - component.update: display_st7789
 
 # Time component (needed for displaying time)
 time:
@@ -159,13 +228,13 @@ time:
 sensor:
   - platform: homeassistant
     id: outside_temperature # Make sure this ID matches an entity_id in Home Assistant
-    entity_id: sensor.outside_temperature # Example Entity ID
+    entity_id: sensor.ir_remote_ir_temperature # Example Entity ID
     internal: true # Don't expose this back to HA, just use it locally
 
 i2s_audio:
   - id: i2s_dac_output
-    i2s_lrclk_pin: GPIO38   
-    i2s_bclk_pin: GPIO48    
+    i2s_lrclk_pin: GPIO38   # GPIO Table: I2S LRCK
+    i2s_bclk_pin: GPIO48    # GPIO Table: I2S BCK (Conflicts with Amp Enable!)
 media_player:
   - platform: i2s_audio
     name: ESPHome I2S Media Player
