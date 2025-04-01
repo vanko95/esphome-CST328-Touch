@@ -38,19 +38,19 @@ logger:
 
 # SPI Bus (For Display Only)
 spi:
-  clk_pin: GPIO40  # Changed from 14
-  mosi_pin: GPIO45 # Changed from 13
+  clk_pin: GPIO40  
+  mosi_pin: GPIO45 
   # MISO not typically used by ST7789 display, can often be omitted
   # miso_pin: GPIO3
   id: spi_display_bus
 
 # I2C Bus (For Touch Controller)
 i2c:
-  sda: GPIO1 # Touch SDA 11
-  scl: GPIO3 # Touch SCL 10
+  sda: GPIO1 
+  scl: GPIO3 
   scan: true     # Log found I2C devices on boot (helpful for debugging)
   id: i2c_touch_bus
-  frequency: 400kHz # Or try 100kHz
+  frequency: 400kHz 
 
 # Backlight Control
 output:
@@ -159,13 +159,13 @@ time:
 sensor:
   - platform: homeassistant
     id: outside_temperature # Make sure this ID matches an entity_id in Home Assistant
-    entity_id: sensor.ir_remote_ir_temperature # Example Entity ID
+    entity_id: sensor.outside_temperature # Example Entity ID
     internal: true # Don't expose this back to HA, just use it locally
 
 i2s_audio:
   - id: i2s_dac_output
-    i2s_lrclk_pin: GPIO38   # GPIO Table: I2S LRCK
-    i2s_bclk_pin: GPIO48    # GPIO Table: I2S BCK (Conflicts with Amp Enable!)
+    i2s_lrclk_pin: GPIO38   
+    i2s_bclk_pin: GPIO48    
 media_player:
   - platform: i2s_audio
     name: ESPHome I2S Media Player
