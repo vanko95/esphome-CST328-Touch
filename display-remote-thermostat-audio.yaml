@@ -1,0 +1,1421 @@
+# =====================================================================
+# ESPHome Configuration for Waveshare ESP32-S3-Touch-LCD-2.8
+# -- Display: ST7789 (240x320)
+# -- Touch:   CST328/CST816S (I2C)
+# =====================================================================
+
+esphome:
+  name: waveshare-st7789-lcd-tv
+  friendly_name: Waveshare ST7789 LCD TV
+  platformio_options:
+    build_flags: "-DBOARD_HAS_PSRAM"
+    board_build.arduino.memory_type: qio_opi
+  on_boot:
+    priority: -500.0
+    then:
+      - logger.log: "Setting power latch pin LOW..."
+      - output.turn_off: power_latch_pin
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+  flash_size: 16MB
+
+# -- Basic Connectivity --
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: True
+  power_save_mode: light
+
+# Enable Home Assistant API
+api:
+  id: ha_client # This ID is needed for homeassistant.service actions
+
+ota:
+  platform: esphome
+
+# Enable logging
+logger:
+  baud_rate: 0 # Disable USB Serial logging
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+# -- Hardware Definitions --
+
+# SPI Bus (For Display Only)
+spi:
+  clk_pin: GPIO40
+  mosi_pin: GPIO45
+  id: spi_display_bus
+
+# I2C Bus (For Touch Controller)
+i2c:
+  sda: GPIO1
+  scl: GPIO3
+  scan: true
+  id: i2c_touch_bus
+  frequency: 400kHz
+
+# Backlight Control
+output:
+  - platform: ledc
+    pin: GPIO5
+    id: backlight_output
+    frequency: 1000Hz
+
+  - platform: gpio
+    pin: GPIO7
+    id: power_latch_pin
+    inverted: true
+
+light:
+  - platform: monochromatic
+    name: "LCD Backlight"
+    output: backlight_output
+    id: lcd_backlight
+    restore_mode: ALWAYS_ON
+
+# Fonts
+font:
+  - file: "gfonts://Inter@900"
+    id: font_ac_temp
+    size: 80
+  - file: "gfonts://Inter@900"
+    id: font_roboto_large
+    size: 40
+  - file: "gfonts://Inter@900"
+    id: font_roboto_medium
+    size: 24
+  - file: "gfonts://Inter@700"
+    id: font_roboto_small
+    size: 16
+  - file: "gfonts://Inter@700"
+    id: tiny
+    size: 24
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id: font_mdi_large
+    size: 80
+    glyphs: &mdi-glyphs
+      # Weather
+      - "\U000F0590" # mdi-weather-cloudy
+      - "\U000F0F2F" # mdi-weather-cloudy-alert
+      - "\U000F0E6E" # mdi-weather-cloudy-arrow-right
+      - "\U000F0591" # mdi-weather-fog
+      - "\U000F0592" # mdi-weather-hail
+      - "\U000F0F30" # mdi-weather-hazy
+      - "\U000F0898" # mdi-weather-hurricane
+      - "\U000F0593" # mdi-weather-lightning
+      - "\U000F067E" # mdi-weather-lightning-rainy
+      - "\U000F0594" # mdi-weather-clear-night
+      - "\U000F0F31" # mdi-weather-night-partly-cloudy
+      - "\U000F0595" # mdi-weather-partly-cloudy
+      - "\U000F0F32" # mdi-weather-partly-lightning
+      - "\U000F0F33" # mdi-weather-partly-rainy
+      - "\U000F0F34" # mdi-weather-partly-snowy
+      - "\U000F0F35" # mdi-weather-partly-snowy-rainy
+      - "\U000F0596" # mdi-weather-pouring
+      - "\U000F0597" # mdi-weather-rainy
+      - "\U000F0598" # mdi-weather-snowy
+      - "\U000F0F36" # mdi-weather-snowy-heavy
+      - "\U000F067F" # mdi-weather-snowy-rainy
+      - "\U000F0599" # mdi-weather-sunny
+      - "\U000F0F37" # mdi-weather-sunny-alert
+      - "\U000F14E4" # mdi-weather-sunny-off
+      - "\U000F059A" # mdi-weather-sunset
+      - "\U000F059B" # mdi-weather-sunset-down
+      - "\U000F059C" # mdi-weather-sunset-up
+      - "\U000F0F38" # mdi-weather-tornado
+      - "\U000F059D" # mdi-weather-windy
+      - "\U000F059E" # mdi-weather-windy-variant
+ 
+      # Controls
+      - "\U000F10AF" # mdi-door-closed-lock
+      - "\U000F081C" # mdi-door-open
+      - "\U000F0336" # mdi-lightbulb-off-outline (Alternative light off)
+      - "\U000F0335" # mdi-lightbulb-on-outline (Alternative light on)
+      - "\U000F1425" # mdi-power-plug-off
+      - "\U000F06A5" # mdi-power-plug
+      # TV Remote
+      - "\U000F0425" # mdi-power
+      - "\U000F02FA" # mdi-import (Alternative input)
+      - "\U000F02FC" # mdi-information-outline
+      - "\U000F0737" # mdi-chevron-up
+      - "\U000F072E" # mdi-chevron-down
+      - "\U000F075D" # mdi-volume-plus
+      - "\U000F075E" # mdi-volume-minus
+      - "\U000F083F" # mdi-remote-tv
+      - "\U000F1BB8" # mdi-hdmi-port
+      - "\U000F075F" # mdi-volume-mute
+      # AC Controls
+      # - "\U000F0405" # mdi-power (already included)
+      - "\U000F0717" # mdi-snowflake (Cool) F0717 F05A2
+      - "\U000F0238" # mdi-fire (Heat) F0238 F0556
+      - "\U000F0210" # mdi-fan (Fan Only) F0210 F05A4
+      - "\U000F058E" # mdi-water-percent (Dry) F058E F05A0
+      #- "\U000F0419" # mdi-menu-down (Dropdown icon)
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id: font_mdi_medium
+    size: 40
+    glyphs: *mdi-glyphs
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id: font_mdi_ac_controls
+    size: 28
+    glyphs: *mdi-glyphs
+
+# Global variables
+globals:
+  - id: current_page
+    type: int
+    initial_value: '0'
+
+script:
+  - id: backlight_on_with_timeout
+    mode: restart
+    then:
+      - light.turn_on: lcd_backlight
+      - delay: 30s
+      - light.turn_off: lcd_backlight
+
+# Display Configuration (ST7789)
+display:
+  - platform: ili9xxx
+    model: st7789v
+    id: display_st7789
+    spi_id: spi_display_bus
+    dimensions:
+      height: 320
+      width: 240
+    transform:
+      swap_xy: false
+      mirror_x: false
+      mirror_y: false
+    color_order: bgr
+    invert_colors: true
+    data_rate: 80MHz
+    cs_pin: GPIO42
+    dc_pin: GPIO41
+    reset_pin: GPIO39
+    update_interval: 5s # Or link to on_time trigger
+
+    lambda: |-
+      // --- C++ Includes ---
+      #include <string>
+      #include <map>
+      #include <vector>
+      #include <algorithm> // For std::transform, std::tolower
+      #include <cmath>     // For round, fmaxf, fminf
+
+      // --- Constants ---
+      const Color COLOR_BG = Color::BLACK;
+      const Color COLOR_TEXT = Color::WHITE;
+      const Color COLOR_ACCENT = Color(0, 128, 255); // Blue for active buttons/icons
+      const Color COLOR_BORDER = Color::WHITE;
+      const Color COLOR_DISABLED = Color(100, 100, 100);
+      const Color COLOR_WARNING = Color(255, 165, 0); // Orange for N/A
+      const Color COLOR_TEMP = Color(0, 255, 255);   // Cyan
+      const Color COLOR_HUMIDITY = Color(0, 255, 128); // Light Green
+      const Color COLOR_ICON_CONTROL = Color(70, 130, 180); // Steel Blue for TV buttons
+      const Color COLOR_ICON_WEATHER = Color::WHITE;
+      // -- AC Colors --
+      const Color COLOR_AC_BUTTON_INACTIVE = Color(80, 80, 80);    // Dark Gray
+      const Color COLOR_AC_COOL_ACTIVE = Color(0, 191, 255);    // Deep Sky Blue
+      const Color COLOR_AC_HEAT_ACTIVE = Color(255, 100, 0);    // Orange/Red
+      const Color COLOR_AC_OTHER_ACTIVE = Color(120, 120, 120); // Slightly lighter gray for other modes
+
+      // --- Page Definitions (LOCAL TO THIS LAMBDA) ---
+      const int PAGE_HOME = 0;
+      const int PAGE_SENSORS = 1;
+      const int PAGE_CONTROLS = 2;
+      const int PAGE_TV_REMOTE = 3;
+      const int PAGE_AC = 4;
+
+      const int SCREEN_WIDTH = it.get_width();
+      const int SCREEN_HEIGHT = it.get_height();
+      const int CENTER_X = SCREEN_WIDTH / 2;
+
+      // --- Icon Maps ---
+      const std::map<std::string, std::string> weather_icon_map {
+          {"cloudy", "\U000F0590"}, {"cloudy-alert", "\U000F0F2F"}, {"cloudy-arrow-right", "\U000F0E6E"},
+          {"fog", "\U000F0591"}, {"hail", "\U000F0592"}, {"hazy", "\U000F0F30"}, {"hurricane", "\U000F0898"},
+          {"lightning", "\U000F0593"}, {"lightning-rainy", "\U000F067E"}, {"clear-night", "\U000F0594"},
+          {"night-partly-cloudy", "\U000F0F31"}, {"partlycloudy", "\U000F0595"}, {"partly-lightning", "\U000F0F32"},
+          {"partly-rainy", "\U000F0F33"}, {"partly-snowy", "\U000F0F34"}, {"partly-snowy-rainy", "\U000F0F35"},
+          {"pouring", "\U000F0596"}, {"rainy", "\U000F0597"}, {"snowy", "\U000F0598"}, {"snowy-heavy", "\U000F0F36"},
+          {"snowy-rainy", "\U000F067F"}, {"sunny", "\U000F0599"}, {"sunny-alert", "\U000F0F37"},
+          {"sunny-off", "\U000F14E4"}, {"sunset", "\U000F059A"}, {"sunset-down", "\U000F059B"},
+          {"sunset-up", "\U000F059C"}, {"tornado", "\U000F0F38"}, {"windy", "\U000F059D"}, {"windy-variant", "\U000F059E"},
+          {"exceptional", "\U000F0F37"}
+      };
+      // Map light states to MDI characters.
+      const std::map<std::string, std::string> light_map { {"ON", "\U000F0335"}, {"OFF", "\U000F0336"} };
+      // Map plug states to MDI characters.
+      const std::map<std::string, std::string> plug_map { {"ON", "\U000F06A5"}, {"OFF", "\U000F1425"} };
+
+      const std::map<std::string, std::string> ac_mode_icon_map {
+          {"off", "\U000F0425"}, {"cool", "\U000F0717"}, {"heat", "\U000F0238"},
+          {"fan_only", "\U000F0210"}, {"dry", "\U000F058E"}
+      };
+
+      // Function to safely get an icon from a map, returning "?" if not found
+      auto get_icon = [](const std::map<std::string, std::string>& map, const std::string& key) -> const char* {
+          auto it = map.find(key);
+          return (it != map.end()) ? it->second.c_str() : "?";
+      };
+
+      auto draw_nav_button = [&](int x, int y, int w, int h, int page_index, const char* label) {
+          if (id(current_page) == page_index) {
+              it.filled_rectangle(x, y, w, h, COLOR_ACCENT);
+          } else {
+              it.rectangle(x, y, w, h, COLOR_BORDER);
+          }
+          it.print(x + w/2, y + h/2, id(font_roboto_small), COLOR_TEXT, TextAlign::CENTER, label);
+      };
+
+      auto draw_sensor_line = [&](int& y, int x_label, int x_value, const char* label, sensor::Sensor* sensor, const char* unit, Color value_color) {
+          it.print(x_label, y, id(font_roboto_small), COLOR_TEXT, TextAlign::TOP_LEFT, label);
+          if (sensor != nullptr && sensor->has_state()) {
+              it.printf(x_value, y, id(font_roboto_small), value_color, TextAlign::TOP_RIGHT, "%.1f%s", sensor->state, unit);
+          } else {
+              it.print(x_value, y, id(font_roboto_small), COLOR_WARNING, TextAlign::TOP_RIGHT, "N/A");
+          }
+          y += 20;
+      };
+
+      auto draw_forecast_box = [&](int x, int y, int w, int h,
+                                   text_sensor::TextSensor* day_name_sensor,
+                                   text_sensor::TextSensor* weather_sensor,
+                                   sensor::Sensor* max_temp,
+                                   sensor::Sensor* min_temp) {
+          it.rectangle(x, y, w, h, COLOR_BORDER);
+          int day_name_y = y + 8;
+          if (day_name_sensor != nullptr && day_name_sensor->has_state()) {
+              it.print(x + w/2, day_name_y, id(font_roboto_small), COLOR_TEXT, TextAlign::TOP_CENTER, day_name_sensor->state.c_str());
+          } else {
+              it.print(x + w/2, day_name_y, id(font_roboto_small), COLOR_WARNING, TextAlign::TOP_CENTER, "---");
+          }
+          int icon_y = y + 25;
+          const char* weather_icon = "?";
+          if (weather_sensor != nullptr && weather_sensor->has_state()) {
+              weather_icon = get_icon(weather_icon_map, weather_sensor->state);
+          }
+          it.printf(x + w/2, icon_y, id(font_mdi_medium), COLOR_ICON_WEATHER, TextAlign::TOP_CENTER, "%s", weather_icon);
+          int max_temp_y = icon_y + 45;
+          int min_temp_y = max_temp_y + 18;
+          if (max_temp != nullptr && max_temp->has_state()) {
+              it.printf(x + w/2, max_temp_y, id(font_roboto_small), COLOR_TEXT, TextAlign::CENTER_HORIZONTAL, "%.0f°C", max_temp->state);
+          } else {
+              it.print(x + w/2, max_temp_y, id(font_roboto_small), COLOR_WARNING, TextAlign::CENTER_HORIZONTAL, "N/A");
+          }
+          if (min_temp != nullptr && min_temp->has_state()) {
+              it.printf(x + w/2, min_temp_y, id(font_roboto_small), COLOR_TEXT, TextAlign::CENTER_HORIZONTAL, "%.0f°C", min_temp->state);
+          } else {
+               it.print(x + w/2, min_temp_y, id(font_roboto_small), COLOR_WARNING, TextAlign::CENTER_HORIZONTAL, "N/A");
+          }
+      };
+
+      // Function to draw a control icon (light/plug)
+      auto draw_control_icon = [&](int x_center, int y_label, int y_icon, const char* label, binary_sensor::BinarySensor* bin_sensor, const std::map<std::string, std::string>& icon_map) {
+          bool is_on = bin_sensor->state; // Assumes state is available, maybe add has_state if needed
+          std::string state_key = is_on ? "ON" : "OFF";
+          const char* icon_char = get_icon(icon_map, state_key);
+
+          it.print(x_center, y_label, id(font_roboto_small), COLOR_TEXT, TextAlign::CENTER, label);
+          it.printf(x_center, y_icon, id(font_mdi_large), COLOR_ICON_CONTROL, TextAlign::CENTER_HORIZONTAL, "%s", icon_char);
+      };
+
+      // --- Main Drawing Logic ---
+      it.fill(COLOR_BG);
+
+      const int nav_button_width = 70;
+      const int nav_button_height = 30;
+      const int nav_button_spacing = 5;
+      const int nav_button_y_bottom = SCREEN_HEIGHT - nav_button_height - 5;
+      const int nav_button_y_upper = nav_button_y_bottom - nav_button_height - 5;
+      const int nav_base_x = 5;
+
+      draw_nav_button(nav_base_x, nav_button_y_bottom, nav_button_width, nav_button_height, PAGE_HOME, "Home");
+      draw_nav_button(nav_base_x + (nav_button_width + nav_button_spacing), nav_button_y_bottom, nav_button_width, nav_button_height, PAGE_SENSORS, "Sensors");
+      draw_nav_button(nav_base_x + (nav_button_width + nav_button_spacing) * 2, nav_button_y_bottom, nav_button_width, nav_button_height, PAGE_CONTROLS, "Lights");
+      draw_nav_button(nav_base_x, nav_button_y_upper, nav_button_width, nav_button_height, PAGE_TV_REMOTE, "TV");
+      draw_nav_button(nav_base_x + (nav_button_width + nav_button_spacing), nav_button_y_upper, nav_button_width, nav_button_height, PAGE_AC, "AC");
+
+      // --- Page Specific Drawing ---
+      if (id(current_page) == PAGE_HOME) { // Page 0
+        if (id(homeassistant_time).now().is_valid()) {
+          it.print(0, 0, id(font_roboto_medium), COLOR_TEXT, TextAlign::TOP_LEFT, id(homeassistant_time).now().strftime("%a %d").c_str());
+          if (id(battery_percentage).has_state()) {
+              it.printf(SCREEN_WIDTH - 10, 0, id(font_roboto_small), COLOR_TEMP, TextAlign::TOP_RIGHT, "%.0f%%", id(battery_percentage).state);
+          } else {
+              it.print(SCREEN_WIDTH - 10, 0, id(font_roboto_small), COLOR_WARNING, TextAlign::TOP_RIGHT, "??%");
+          }
+          it.print(SCREEN_WIDTH - 10, 20, id(font_roboto_large), COLOR_TEXT, TextAlign::TOP_RIGHT, id(homeassistant_time).now().strftime("%H:%M").c_str());
+
+          const char* current_weather_icon = "?";
+          if (id(weather_now).has_state()) {
+              current_weather_icon = get_icon(weather_icon_map, id(weather_now).state);
+          }
+          it.printf(40, 20, id(font_mdi_large), COLOR_ICON_WEATHER, TextAlign::CENTER_HORIZONTAL, "%s", current_weather_icon);
+
+          if (id(temp_now).has_state()) {
+            it.printf(50, 90, id(font_roboto_medium), COLOR_TEMP, TextAlign::CENTER_HORIZONTAL, "%.0f°C", id(temp_now).state);
+          } else {
+            it.print(50, 90, id(font_roboto_medium), COLOR_WARNING, TextAlign::CENTER_HORIZONTAL, "N/A");
+          }
+
+          int conditions_y = 65;
+          if (id(temp_min_d1).has_state() && id(temp_max_d1).has_state()) {
+            it.printf(SCREEN_WIDTH - 10, conditions_y, id(font_roboto_small), COLOR_TEXT, TextAlign::TOP_RIGHT, "%.0f°/%.0f°C", id(temp_min_d1).state, id(temp_max_d1).state);
+            conditions_y += 18;
+          }
+          if (id(humidity_now).has_state()) {
+            it.printf(SCREEN_WIDTH - 10, conditions_y, id(font_roboto_small), COLOR_TEXT, TextAlign::TOP_RIGHT, "Hum: %.0f%%", id(humidity_now).state);
+          }
+
+          const int forecast_box_width = 70;
+          const int forecast_box_height = 125;
+          const int forecast_box_y = 120;
+          const int forecast_box_spacing = 5;
+          const int forecast_base_x = 5;
+
+          draw_forecast_box(forecast_base_x, forecast_box_y, forecast_box_width, forecast_box_height,
+                            id(day_name_d1), id(weather_d1), id(temp_max_d1), id(temp_min_d1));
+          draw_forecast_box(forecast_base_x + forecast_box_width + forecast_box_spacing, forecast_box_y, forecast_box_width, forecast_box_height,
+                            id(day_name_d2), id(weather_d2), id(temp_max_d2), id(temp_min_d2));
+          draw_forecast_box(forecast_base_x + (forecast_box_width + forecast_box_spacing) * 2, forecast_box_y, forecast_box_width, forecast_box_height,
+                            id(day_name_d3), id(weather_d3), id(temp_max_d3), id(temp_min_d3));
+
+        } else {
+          it.print(CENTER_X, SCREEN_HEIGHT/2, id(font_roboto_medium), COLOR_WARNING, TextAlign::CENTER, "Waiting for HA...");
+        }
+      }
+      else if (id(current_page) == PAGE_SENSORS) { // Page 1
+        it.print(CENTER_X, 20, id(font_roboto_medium), COLOR_TEXT, TextAlign::CENTER, "Sensors");
+        if (id(battery_percentage).has_state()) {
+              it.printf(SCREEN_WIDTH - 10, 0, id(font_roboto_small), COLOR_TEMP, TextAlign::TOP_RIGHT, "%.0f%%", id(battery_percentage).state);
+          } else {
+              it.print(SCREEN_WIDTH - 10, 0, id(font_roboto_small), COLOR_WARNING, TextAlign::TOP_RIGHT, "??%");
+          }
+        it.line(10, 40, SCREEN_WIDTH - 10, 40, COLOR_DISABLED);
+        int y_pos = 60;
+        int label_x = 10;
+        int value_x = SCREEN_WIDTH - 10;
+        draw_sensor_line(y_pos, label_x, value_x, "Outside:", id(outside_temperature), "°C", COLOR_TEMP);
+        draw_sensor_line(y_pos, label_x, value_x, "Living Room:", id(lr_temperature), "°C", COLOR_TEMP);
+        draw_sensor_line(y_pos, label_x, value_x, "Gabi Room:", id(gabi_temperature), "°C", COLOR_TEMP);
+        draw_sensor_line(y_pos, label_x, value_x, "Living Hum:", id(living_humidity), "%", COLOR_HUMIDITY);
+        draw_sensor_line(y_pos, label_x, value_x, "Gabi Hum:", id(gabi_humidity), "%", COLOR_HUMIDITY);
+        draw_sensor_line(y_pos, label_x, value_x, "Battery Volt:", id(battery_voltage), "V", COLOR_WARNING);
+      }
+      else if (id(current_page) == PAGE_CONTROLS) { // Page 2
+        it.print(CENTER_X, 20, id(font_roboto_medium), COLOR_TEXT, TextAlign::CENTER, "Smart Controls");
+        if (id(battery_percentage).has_state()) {
+              it.printf(SCREEN_WIDTH - 10, 0, id(font_roboto_small), COLOR_TEMP, TextAlign::TOP_RIGHT, "%.0f%%", id(battery_percentage).state);
+          } else {
+              it.print(SCREEN_WIDTH - 10, 0, id(font_roboto_small), COLOR_WARNING, TextAlign::TOP_RIGHT, "??%");
+          }
+        it.line(10, 40, SCREEN_WIDTH - 10, 40, COLOR_DISABLED);
+        const int control_icon_label_y = 50;
+        const int control_icon_y = 65;
+        const int control_icon_label_y2 = 150;
+        const int control_icon_y2 = 165;
+        draw_control_icon(40, control_icon_label_y, control_icon_y, "Kitchen", id(kitchen_light_touch), light_map);
+        draw_control_icon(115, control_icon_label_y, control_icon_y, "Table", id(table_light_touch), light_map);
+        draw_control_icon(40, control_icon_label_y2, control_icon_y2, "Gabi Plug", id(gabi_plug), plug_map);
+      }
+      else if (id(current_page) == PAGE_TV_REMOTE) { // Page 3
+        // --- PAGE 4: TV REMOTE ---
+        it.print(CENTER_X, 10, id(font_roboto_small), COLOR_TEXT, TextAlign::CENTER, "TV Remote");
+        if (id(battery_percentage).has_state()) {
+              it.printf(SCREEN_WIDTH - 10, 0, id(font_roboto_small), COLOR_TEMP, TextAlign::TOP_RIGHT, "%.0f%%", id(battery_percentage).state);
+          } else {
+              it.print(SCREEN_WIDTH - 10, 0, id(font_roboto_small), COLOR_WARNING, TextAlign::TOP_RIGHT, "??%");
+          }
+
+        const int TV_COLS = 4;
+        const int TV_BTN_W = 55;
+        const int TV_BTN_H = 40;
+        const int TV_SPACING = 5;
+        const int TV_START_X = 5;
+        const int TV_START_Y = 25; // Below title
+
+        // Button Definitions (Index 0-19)
+        // Use "" for no icon/text
+        const char* tv_icons[] = {
+          "\U000F0425", "\U000F02FA", "\U000F02FC", "\U000F0737", // Row 1: POWER, INPUT, INFO, CH+
+          "", "", "", "\U000F072E",                               // Row 2: 1, 2, 3, CH-
+          "", "", "", "\U000F075D",                               // Row 3: 4, 5, 6, VOL+
+          "", "", "", "\U000F075E",                               // Row 4: 7, 8, 9, VOL-
+          "\U000F1BB8", "", "\U000F083F", "\U000F075F"            // Row 5: HDMI, 0, TV, MUTE (Using CH- icon for Mute visually)
+        };
+        const char* tv_texts[] = {
+          "", "", "", "",         // Row 1
+          "1", "2", "3", "",      // Row 2
+          "4", "5", "6", "",      // Row 3
+          "7", "8", "9", "",      // Row 4
+          "", "0", "", ""         // Row 5
+        };
+
+        for (int index = 0; index < 20; ++index) {
+            int row = index / TV_COLS;
+            int col = index % TV_COLS;
+
+            int btn_x = TV_START_X + col * (TV_BTN_W + TV_SPACING);
+            int btn_y = TV_START_Y + row * (TV_BTN_H + TV_SPACING);
+
+            it.rectangle(btn_x, btn_y, TV_BTN_W, TV_BTN_H, COLOR_ICON_CONTROL); // Use same color for consistency
+
+            bool has_icon = (tv_icons[index] && tv_icons[index][0] != '\0');
+            bool has_text = (tv_texts[index] && tv_texts[index][0] != '\0');
+
+            if (has_icon) {
+                 it.printf(btn_x + TV_BTN_W / 2, btn_y + TV_BTN_H / 2, id(font_mdi_medium), COLOR_ICON_CONTROL, TextAlign::CENTER, "%s", tv_icons[index]);
+            } else if (has_text) {
+                 it.print(btn_x + TV_BTN_W / 2, btn_y + TV_BTN_H / 2, id(font_roboto_small), COLOR_ICON_CONTROL, TextAlign::CENTER, tv_texts[index]);
+            }
+            // If neither icon nor text, it's just a blank button area (if needed)
+        }
+      }
+      else if (id(current_page) == PAGE_AC) { // Page 4
+        it.print(CENTER_X, 5, id(font_roboto_small), COLOR_TEXT, TextAlign::TOP_CENTER, "Fujitsu AC");
+        if (id(battery_percentage).has_state()) {
+              it.printf(SCREEN_WIDTH - 10, 0, id(font_roboto_small), COLOR_TEMP, TextAlign::TOP_RIGHT, "%.0f%%", id(battery_percentage).state);
+          } else {
+              it.print(SCREEN_WIDTH - 10, 0, id(font_roboto_small), COLOR_WARNING, TextAlign::TOP_RIGHT, "??%");
+          }
+        int temp_y = 80;
+        std::string current_mode_str = "N/A";
+        std::string target_temp_str = "--";
+        std::string current_temp_str = "";
+        if (id(ac_hvac_mode).has_state()) {
+            current_mode_str = id(ac_hvac_mode).state;
+            if (!current_mode_str.empty()) {
+                if (current_mode_str == "fan_only") { current_mode_str = "Fan"; }
+                else { current_mode_str[0] = toupper(current_mode_str[0]); }
+            }
+        }
+        if (id(ac_target_temp).has_state()) { target_temp_str = std::to_string((int)round(id(ac_target_temp).state)); }
+        if (id(ac_current_temp).has_state()) { current_temp_str = "Current: " + std::to_string((int)round(id(ac_current_temp).state)) + "°C"; }
+
+        it.print(CENTER_X, temp_y - 45, id(font_roboto_medium), COLOR_TEXT, TextAlign::CENTER, current_mode_str.c_str());
+        it.print(CENTER_X, temp_y + 30, id(font_ac_temp), COLOR_TEXT, TextAlign::CENTER_HORIZONTAL, target_temp_str.c_str());
+        //123it.print(CENTER_X + 55, temp_y + 15, id(font_roboto_large), COLOR_TEXT, TextAlign::TOP_LEFT, "°C");
+        if (!current_temp_str.empty()) { it.print(CENTER_X, temp_y + 80, id(font_roboto_small), COLOR_DISABLED, TextAlign::CENTER, current_temp_str.c_str()); }
+
+        int button_radius = 25;
+        int button_y_center = temp_y + 30;
+        int button_spacing = 110;
+        it.filled_circle(CENTER_X - button_spacing / 2, button_y_center, button_radius, COLOR_AC_BUTTON_INACTIVE);
+        it.print(CENTER_X - button_spacing / 2, button_y_center, id(font_roboto_large), COLOR_TEXT, TextAlign::CENTER, "-");
+        it.filled_circle(CENTER_X + button_spacing / 2, button_y_center, button_radius, COLOR_AC_BUTTON_INACTIVE);
+        it.print(CENTER_X + button_spacing / 2, button_y_center, id(font_roboto_large), COLOR_TEXT, TextAlign::CENTER, "+");
+
+        int mode_button_y = 185;
+        int mode_button_width = 42;
+        int mode_button_height = 40;
+        int total_button_width = 5 * mode_button_width;
+        int total_spacing_needed = SCREEN_WIDTH - total_button_width;
+        int mode_button_spacing = total_spacing_needed / 6;
+        const std::vector<std::string> mode_order = {"off", "dry", "cool", "heat", "fan_only"};
+        for (int i = 0; i < mode_order.size(); ++i) {
+            int btn_x = mode_button_spacing * (i + 1) + mode_button_width * i;
+            std::string mode = mode_order[i];
+            const char* icon = get_icon(ac_mode_icon_map, mode);
+            Color btn_color = COLOR_AC_BUTTON_INACTIVE;
+            if (id(ac_hvac_mode).has_state() && id(ac_hvac_mode).state == mode) {
+                 if (mode == "heat") btn_color = COLOR_AC_HEAT_ACTIVE;
+                 else if (mode == "cool") btn_color = COLOR_AC_COOL_ACTIVE;
+                 else btn_color = COLOR_AC_OTHER_ACTIVE;
+            }
+            it.filled_rectangle(btn_x, mode_button_y, mode_button_width, mode_button_height, btn_color);
+            it.print(btn_x + mode_button_width / 2, mode_button_y + mode_button_height / 2, id(font_mdi_ac_controls), COLOR_TEXT, TextAlign::CENTER, icon);
+        }
+
+      }
+
+# Touchscreen Configuration (CST328 via I2C)
+touchscreen:
+  platform: cst328
+  id: my_touchscreen
+  i2c_id: i2c_touch_bus
+  interrupt_pin: GPIO4
+  reset_pin: GPIO2
+  address: 0x1A
+  on_touch:
+    then:
+      - script.execute: backlight_on_with_timeout
+
+# -- Touch Controls & State Display Updates --
+binary_sensor:
+  # Touch controls for lights (Page 2: Controls)
+  - platform: touchscreen
+    name: "Table Light Touch"
+    touchscreen_id: my_touchscreen
+    x_min: 75
+    # --- Continuation of binary_sensor section ---
+
+    y_min: 50
+    x_max: 155
+    y_max: 145
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 2;' # Page 2 = Controls
+            then:
+              - homeassistant.service:
+                  service: switch.toggle
+                  data: { entity_id: switch.tasmota2_2 }
+
+  - platform: touchscreen
+    name: "Kitchen Light Touch"
+    touchscreen_id: my_touchscreen
+    x_min: 0
+    y_min: 50
+    x_max: 80
+    y_max: 145
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 2;' # Page 2 = Controls
+            then:
+              - homeassistant.service:
+                  service: switch.toggle
+                  data: { entity_id: switch.tasmota2 }
+
+  - platform: touchscreen
+    name: "Gabi Plug Touch"
+    touchscreen_id: my_touchscreen
+    x_min: 0
+    y_min: 150
+    x_max: 80
+    y_max: 245
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 2;' # Page 2 = Controls
+            then:
+              - homeassistant.service:
+                  service: switch.toggle
+                  data: { entity_id: switch.smartplug }
+
+  # Page navigation touch controls
+  # Bottom Row
+  - platform: touchscreen
+    id: page_home_button
+    name: "Page Home Button"
+    touchscreen_id: my_touchscreen
+    x_min: 5
+    y_min: 285
+    x_max: 75
+    y_max: 315
+    on_press:
+      then:
+        - lambda: 'id(current_page) = 0;' # Page 0 = Home
+        - component.update: display_st7789
+
+  - platform: touchscreen
+    id: page_sensors_button
+    name: "Page Sensors Button"
+    touchscreen_id: my_touchscreen
+    x_min: 80
+    y_min: 285
+    x_max: 150
+    y_max: 315
+    on_press:
+      then:
+        - lambda: 'id(current_page) = 1;' # Page 1 = Sensors
+        - component.update: display_st7789
+
+  - platform: touchscreen
+    id: page_controls_button
+    name: "Page Controls Button"
+    touchscreen_id: my_touchscreen
+    x_min: 155
+    y_min: 285
+    x_max: 225
+    y_max: 315
+    on_press:
+      then:
+        - lambda: 'id(current_page) = 2;' # Page 2 = Controls
+        - component.update: display_st7789
+
+  # Upper Row
+  - platform: touchscreen
+    id: page_tv_button
+    name: "Page TV Button"
+    touchscreen_id: my_touchscreen
+    x_min: 5
+    y_min: 250
+    x_max: 75
+    y_max: 280
+    on_press:
+      then:
+        - lambda: 'id(current_page) = 3;' # Page 3 = TV Remote
+        - component.update: display_st7789
+
+  - platform: touchscreen
+    id: page_ac_button
+    name: "Page AC Button"
+    touchscreen_id: my_touchscreen
+    x_min: 80
+    y_min: 250
+    x_max: 150
+    y_max: 280
+    on_press:
+      then:
+        - lambda: 'id(current_page) = 4;' # Page 4 = AC
+        - component.update: display_st7789
+
+  # --- AC Control Touch Buttons (Page 4: AC) ---
+  - platform: touchscreen
+    id: ac_temp_down_button
+    name: "AC Temp Down"
+    touchscreen_id: my_touchscreen
+    x_min: 40
+    y_min: 85
+    x_max: 90
+    y_max: 135
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 4;' # Page 4 = AC
+            then:
+              - homeassistant.service:
+                  service: climate.set_temperature
+                  data:
+                    entity_id: climate.ir_remote_fujitsu_soggiorno # <<< YOUR AC ENTITY ID
+                    temperature: !lambda 'return id(ac_target_temp).has_state() ? id(ac_target_temp).state - 1.0 : id(ac_target_temp).state;' # Simple check
+
+  - platform: touchscreen
+    id: ac_temp_up_button
+    name: "AC Temp Up"
+    touchscreen_id: my_touchscreen
+    x_min: 150
+    y_min: 85
+    x_max: 200
+    y_max: 135
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 4;' # Page 4 = AC
+            then:
+              - homeassistant.service:
+                  service: climate.set_temperature
+                  data:
+                    entity_id: climate.ir_remote_fujitsu_soggiorno # <<< YOUR AC ENTITY ID
+                    temperature: !lambda 'return id(ac_target_temp).has_state() ? id(ac_target_temp).state + 1.0 : id(ac_target_temp).state;' # Simple check
+
+  - platform: touchscreen
+    id: ac_mode_off_button
+    name: "AC Mode Off"
+    touchscreen_id: my_touchscreen
+    x_min: 5
+    y_min: 185
+    x_max: 47
+    y_max: 225
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 4;' # Page 4 = AC
+            then:
+              - homeassistant.service:
+                  service: climate.set_hvac_mode
+                  data: { entity_id: climate.ir_remote_fujitsu_soggiorno, hvac_mode: 'off' }
+
+  - platform: touchscreen
+    id: ac_mode_dry_button
+    name: "AC Mode Dry"
+    touchscreen_id: my_touchscreen
+    x_min: 52
+    y_min: 185
+    x_max: 94
+    y_max: 225
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 4;' # Page 4 = AC
+            then:
+              - homeassistant.service:
+                  service: climate.set_hvac_mode
+                  data: { entity_id: climate.ir_remote_fujitsu_soggiorno, hvac_mode: 'dry' }
+
+  - platform: touchscreen
+    id: ac_mode_cool_button
+    name: "AC Mode Cool"
+    touchscreen_id: my_touchscreen
+    x_min: 99
+    y_min: 185
+    x_max: 141
+    y_max: 225
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 4;' # Page 4 = AC
+            then:
+              - homeassistant.service:
+                  service: climate.set_hvac_mode
+                  data: { entity_id: climate.ir_remote_fujitsu_soggiorno, hvac_mode: 'cool' }
+
+  - platform: touchscreen
+    id: ac_mode_heat_button
+    name: "AC Mode Heat"
+    touchscreen_id: my_touchscreen
+    x_min: 146
+    y_min: 185
+    x_max: 188
+    y_max: 225
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 4;' # Page 4 = AC
+            then:
+              - homeassistant.service:
+                  service: climate.set_hvac_mode
+                  data: { entity_id: climate.ir_remote_fujitsu_soggiorno, hvac_mode: 'heat' }
+
+  - platform: touchscreen
+    id: ac_mode_fan_button
+    name: "AC Mode Fan Only"
+    touchscreen_id: my_touchscreen
+    x_min: 193
+    y_min: 185
+    x_max: 235
+    y_max: 225
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 4;' # Page 4 = AC
+            then:
+              - homeassistant.service:
+                  service: climate.set_hvac_mode
+                  data: { entity_id: climate.ir_remote_fujitsu_soggiorno, hvac_mode: 'fan_only' }
+
+
+  # Home Assistant binary sensors to reflect state for display
+  - platform: homeassistant
+    id: table_light_touch
+    entity_id: switch.tasmota2_2
+    internal: true # No need for HA sensor, just for display logic
+    on_state:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 2;' # Page 2 = Controls
+            then:
+              - component.update: display_st7789
+
+  - platform: homeassistant
+    id: kitchen_light_touch
+    entity_id: switch.tasmota2
+    name: "Kitchen Light State"
+#    internal: true
+    on_state:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 2;' # Page 2 = Controls
+            then:
+              - component.update: display_st7789
+
+  - platform: homeassistant
+    id: gabi_plug
+    entity_id: switch.smartplug
+#    internal: true
+    on_state:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 2;' # Page 2 = Controls
+            then:
+              - component.update: display_st7789
+
+  # --- TV Remote Button Controls (Page 3: TV) ---
+  - platform: touchscreen
+    id: tv_power_button
+    name: "TV Power Button"
+    touchscreen_id: my_touchscreen
+    x_min: 5
+    y_min: 25
+    x_max: 60
+    y_max: 65
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_power_lg }
+  - platform: touchscreen
+    id: tv_input_button
+    name: "TV Input Button"
+    touchscreen_id: my_touchscreen
+    x_min: 65
+    y_min: 25
+    x_max: 120
+    y_max: 65
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_input_lg }
+  - platform: touchscreen
+    id: tv_info_button
+    name: "TV Info Button"
+    touchscreen_id: my_touchscreen
+    x_min: 125
+    y_min: 25
+    x_max: 180
+    y_max: 65
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_info }
+  - platform: touchscreen
+    id: tv_chplus_button
+    name: "TV CH_Plus Button"
+    touchscreen_id: my_touchscreen
+    x_min: 185
+    y_min: 25
+    x_max: 240
+    y_max: 65
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_chan_up_lg }
+  - platform: touchscreen
+    id: tv_1_button
+    name: "TV 1 Button"
+    touchscreen_id: my_touchscreen
+    x_min: 5
+    y_min: 70
+    x_max: 60
+    y_max: 110
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_1_one_lg }
+  - platform: touchscreen
+    id: tv_2_button
+    name: "TV 2 Button"
+    touchscreen_id: my_touchscreen
+    x_min: 65
+    y_min: 70
+    x_max: 120
+    y_max: 110
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_1_two_lg } # CHECK ID
+  - platform: touchscreen
+    id: tv_3_button
+    name: "TV 3 Button"
+    touchscreen_id: my_touchscreen
+    x_min: 125
+    y_min: 70
+    x_max: 180
+    y_max: 110
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_3_three_lg } # CHECK ID
+  - platform: touchscreen
+    id: tv_chmin_button
+    name: "TV CH_Min Button"
+    touchscreen_id: my_touchscreen
+    x_min: 185
+    y_min: 70
+    x_max: 240
+    y_max: 110
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_chan_down_lg }
+  - platform: touchscreen
+    id: tv_4_button
+    name: "TV 4 Button"
+    touchscreen_id: my_touchscreen
+    x_min: 5
+    y_min: 115
+    x_max: 60
+    y_max: 155
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_4_four_lg }
+  - platform: touchscreen
+    id: tv_5_button
+    name: "TV 5 Button"
+    touchscreen_id: my_touchscreen
+    x_min: 65
+    y_min: 115
+    x_max: 120
+    y_max: 155
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_5_five_lg }
+  - platform: touchscreen
+    id: tv_6_button
+    name: "TV 6 Button"
+    touchscreen_id: my_touchscreen
+    x_min: 125
+    y_min: 115
+    x_max: 180
+    y_max: 155
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_6_six_lg }
+  - platform: touchscreen
+    id: tv_volup_button
+    name: "TV Volume Up Button"
+    touchscreen_id: my_touchscreen
+    x_min: 185
+    y_min: 115
+    x_max: 240
+    y_max: 155
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_vol_up_lg }
+  - platform: touchscreen
+    id: tv_7_button
+    name: "TV 7 Button"
+    touchscreen_id: my_touchscreen
+    x_min: 5
+    y_min: 160
+    x_max: 60
+    y_max: 200
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_7_seven_lg }
+  - platform: touchscreen
+    id: tv_8_button
+    name: "TV 8 Button"
+    touchscreen_id: my_touchscreen
+    x_min: 65
+    y_min: 160
+    x_max: 120
+    y_max: 200
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_8_eight_lg }
+  - platform: touchscreen
+    id: tv_9_button
+    name: "TV 9 Button"
+    touchscreen_id: my_touchscreen
+    x_min: 125
+    y_min: 160
+    x_max: 180
+    y_max: 200
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_9_nine_lg }
+  - platform: touchscreen
+    id: tv_volmin_button
+    name: "TV Volume Min Button"
+    touchscreen_id: my_touchscreen
+    x_min: 185
+    y_min: 160
+    x_max: 240
+    y_max: 200
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_vol_down_lg }
+  - platform: touchscreen
+    id: tv_hdmi_button
+    name: "TV HDMI Button"
+    touchscreen_id: my_touchscreen
+    x_min: 5
+    y_min: 205
+    x_max: 60
+    y_max: 245
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_hdmi1 }
+  - platform: touchscreen
+    id: tv_0_button
+    name: "TV 0 Button"
+    touchscreen_id: my_touchscreen
+    x_min: 65
+    y_min: 205
+    x_max: 120
+    y_max: 245
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_0_zero_lg }
+  - platform: touchscreen
+    id: tv_tv_button
+    name: "TV TV Button"
+    touchscreen_id: my_touchscreen
+    x_min: 125
+    y_min: 205
+    x_max: 180
+    y_max: 245
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_antenna }
+  - platform: touchscreen
+    id: tv_mute_button
+    name: "TV MUTE Button"
+    touchscreen_id: my_touchscreen
+    x_min: 185
+    y_min: 205
+    x_max: 240
+    y_max: 245
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 3;' # Page 3 = TV Remote
+            then:
+              - homeassistant.service:
+                  service: button.press
+                  data: { entity_id: button.ir_remote_mute_lg }
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+    timezone: Europe/Sofia
+    on_time:
+      - seconds: /60
+        then:
+          - component.update: display_st7789
+
+# Home Assistant Sensors
+sensor:
+  - platform: homeassistant
+    id: outside_temperature
+    entity_id: sensor.ir_remote_ir_temperature # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: lr_temperature
+    entity_id: sensor.xiaomit_h_temperature # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: gabi_temperature
+    entity_id: sensor.xiaomit_h_gabi_temperature # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: living_humidity
+    entity_id: sensor.xiaomit_h_humidity # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: gabi_humidity
+    entity_id: sensor.xiaomit_h_gabi_humidity # CHECK ID
+    internal: true
+
+  # Weather Forecast Sensors (Page 0)
+  - platform: homeassistant
+    id: temp_max_d1
+    entity_id: sensor.temperature_forecast_max_d1 # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: temp_max_d2
+    entity_id: sensor.temperature_forecast_d2_2 # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: temp_max_d3
+    entity_id: sensor.temperature_forecast_max_d3 # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: temp_min_d1
+    entity_id: sensor.temperature_forecast_min_d1 # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: temp_min_d2
+    entity_id: sensor.temperature_forecast_min_d2 # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: temp_min_d3
+    entity_id: sensor.temperature_forecast_min_d1_2 # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: temp_now
+    entity_id: sensor.tempcurrent # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: humidity_now
+    entity_id: sensor.humidity_forecast_d0 # CHECK ID
+    internal: true
+
+  - platform: adc
+    pin: GPIO8                     # Confirmed from schematic (IO7 -> BAT_ADC)
+    name: "Battery Raw ADC"        # Internal raw reading
+    id: battery_raw_adc
+    attenuation: 12db              # REQUIRED: To read voltage > 1.1V (Vbat/2 can reach ~2.1V)
+    update_interval: 60s           # Read every 60 seconds (adjust if needed)
+    internal: true                 # Hide this raw sensor from HA UI
+    # Optional filter for smoothing:
+    # filters:
+    #   - sliding_window_moving_average:
+    #       window_size: 4
+    #       send_every: 4
+
+  - platform: template
+    name: "Battery Voltage"          # Name displayed in Home Assistant
+    id: battery_voltage
+    lambda: |-
+      // V_measured = raw_adc_state * V_ref_attenuation
+      // V_battery = V_measured * (R31 + R32) / R32
+      // V_battery = (raw_adc_state * V_ref_11db) * (100k + 100k) / 100k
+      // V_battery = (raw_adc_state * V_ref_11db) * 200k / 100k
+      // V_battery = raw_adc_state * V_ref_11db * 2.0
+      // Using V_ref_11db ≈ 3.1V (NEEDS CALIBRATION!)
+
+      // STARTING POINT - CALIBRATE THIS VALUE:
+      const float ADC_REF_VOLTAGE = 3.0; // Approx. voltage range for 11dB attenuation
+      const float MULTIPLIER = 1.0;      // Due to 100k/100k divider
+
+      if (id(battery_raw_adc).has_state()) {
+        return id(battery_raw_adc).state * ADC_REF_VOLTAGE * MULTIPLIER;
+      } else {
+        return NAN; // Not-a-Number, indicates sensor is not ready
+      }
+    unit_of_measurement: "V"
+    device_class: voltage
+    state_class: measurement
+    accuracy_decimals: 2
+    update_interval: 60s # Update calculated value when ADC updates, or independently
+
+  # --- NEW: Battery Percentage Sensor ---
+  - platform: template
+    name: "Battery Percentage"
+    id: battery_percentage
+    lambda: |-
+      // Define the voltage range for percentage calculation
+      const float V_BAT_MAX = 4.20; // Voltage considered 100%
+      const float V_BAT_MIN = 3.20; // Voltage considered 0%
+
+      // Include cmath for fmaxf/fminf
+      #include <cmath>
+
+      if (id(battery_voltage).has_state()) {
+        float voltage = id(battery_voltage).state;
+        // Calculate the percentage linearly within the defined range
+        float percentage = ((voltage - V_BAT_MIN) / (V_BAT_MAX - V_BAT_MIN)) * 100.0;
+
+        // Clamp the value strictly between 0% and 100%
+        percentage = fmaxf(0.0f, fminf(100.0f, percentage));
+
+        return percentage;
+      } else {
+        // Return NAN if voltage isn't available yet
+        return NAN;
+      }
+
+  # --- AC Climate Sensors (Page 4) ---
+  - platform: homeassistant
+    id: ac_target_temp
+    entity_id: climate.ir_remote_fujitsu_soggiorno # <<< YOUR AC ENTITY ID
+    attribute: temperature
+    internal: true
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 4;' # Page 4 = AC
+            then:
+              - component.update: display_st7789
+  - platform: homeassistant
+    id: ac_current_temp
+    entity_id: climate.ir_remote_fujitsu_soggiorno # <<< YOUR AC ENTITY ID
+    attribute: current_temperature
+    internal: true
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(current_page) == 4;' # Page 4 = AC
+            then:
+              - component.update: display_st7789
+
+# Text Sensors
+text_sensor:
+  # Weather/Forecast (Page 0)
+  - platform: homeassistant
+    id: weather_d1
+    entity_id: sensor.weather_forecast_d1 # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: weather_d2
+    entity_id: sensor.weather_forecast_d2 # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: weather_d3
+    entity_id: sensor.weather_forecast_d3 # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: weather_now
+    entity_id: sensor.weathercurrent # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: day_name_d1
+    entity_id: sensor.forecast_day_name_d1 # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: day_name_d2
+    entity_id: sensor.forecast_day_name_d2 # CHECK ID
+    internal: true
+  - platform: homeassistant
+    id: day_name_d3
+    entity_id: sensor.forecast_day_name_d3 # CHECK ID
+    internal: true
+
+  # --- AC Climate Text Sensors (Page 4) ---
+  - platform: homeassistant
+    id: ac_hvac_mode
+    entity_id: climate.ir_remote_fujitsu_soggiorno # <<< YOUR AC ENTITY ID
+    internal: true
+    
+  - platform: homeassistant
+    id: ac_fan_mode
+    entity_id: climate.ir_remote_fujitsu_soggiorno # <<< YOUR AC ENTITY ID
+    attribute: fan_mode
+    internal: true
+    
+
+# Audio components
+i2s_audio:
+  - id: i2s_dac_output
+    i2s_lrclk_pin: GPIO38 # Verify
+    i2s_bclk_pin: GPIO48  # Verify (Potential conflict)
+
+speaker:
+  - platform: i2s_audio
+    id: output_speaker
+    i2s_dout_pin: GPIO47
+    dac_type: external    
+    bits_per_sample: 32bit
+    channel: stereo
+    buffer_duration: 60ms
+    
+
+media_player:
+  - platform: speaker
+    name: "ESPHome I2S Media Player"
+    id: media_out
+    announcement_pipeline:
+      speaker: output_speaker
+      format: WAV
+    codec_support_enabled: false
+    buffer_size: 6000
+    on_pause:
+      - logger.log: "Playback paused!"
+    on_idle:
+      - logger.log: "Playback finished!"
+      
+external_components:
+  - source: { type: git, url: https://github.com/BluetriX/esphome-CST328-Touch }
+    components: [cst328]
